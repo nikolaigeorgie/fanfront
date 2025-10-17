@@ -2,8 +2,10 @@ import { useColorScheme } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { ConvexProvider } from "convex/react";
 
 import { queryClient } from "~/utils/api";
+import { convex } from "~/utils/convex";
 
 import "../styles.css";
 
@@ -12,22 +14,22 @@ import "../styles.css";
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   return (
-    <QueryClientProvider client={queryClient}>
-      {/*
-          The Stack component displays the current page.
-          It also allows you to configure your screens 
-        */}
-      <Stack
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: "#c03484",
-          },
-          contentStyle: {
-            backgroundColor: colorScheme == "dark" ? "#09090B" : "#FFFFFF",
-          },
-        }}
-      />
-      <StatusBar />
-    </QueryClientProvider>
+    <ConvexProvider client={convex}>
+      <QueryClientProvider client={queryClient}>
+        {/*
+            The Stack component displays the current page.
+            It also allows you to configure your screens 
+          */}
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: {
+              backgroundColor: "#000000",
+            },
+          }}
+        />
+        <StatusBar />
+      </QueryClientProvider>
+    </ConvexProvider>
   );
 }
