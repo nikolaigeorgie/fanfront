@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import tw from "twrnc";
 
 import { authClient } from "~/utils/auth";
+import { api, useConvexQuery } from "~/utils/convex";
 
 export default function CreatorDashboard() {
   const router = useRouter();
@@ -13,9 +14,23 @@ export default function CreatorDashboard() {
     "events",
   );
 
-  // TODO: Integrate with Convex for creator data
-  const creatorEvents = []; // Will be integrated with Convex
-  const activeQueues = []; // Will be integrated with Convex
+  // First get the Convex user by auth ID
+  const convexUser = useConvexQuery(
+    api.users.getUserByAuthId,
+    session?.user?.id ? { authUserId: session.user.id } : "skip",
+  );
+
+  // Load creator's events from Convex using the Convex user ID
+  const creatorEvents = useConvexQuery(
+    api.events.getEventsByCelebrity,
+    convexUser?._id ? { celebrityId: convexUser._id } : "skip",
+  );
+
+  const activeEvents = creatorEvents?.filter((e: any) => e.isActive) || [];
+  const totalInQueue = activeEvents.reduce(
+    (sum: number, e: any) => sum + (e.currentQueueCount || 0),
+    0,
+  );
 
   return (
     <View style={tw`flex-1 bg-white dark:bg-gray-950`}>
@@ -62,7 +77,7 @@ export default function CreatorDashboard() {
               <Text
                 style={tw`text-3xl font-bold text-gray-900 dark:text-gray-50`}
               >
-                0
+                {activeEvents.length}
               </Text>
             </View>
             <View
@@ -71,7 +86,9 @@ export default function CreatorDashboard() {
               <Text style={tw`text-sm text-gray-500 dark:text-gray-400 mb-1`}>
                 In Queue
               </Text>
-              <Text style={tw`text-3xl font-bold text-[#E91E63]`}>0</Text>
+              <Text style={tw`text-3xl font-bold text-[#E91E63]`}>
+                {totalInQueue}
+              </Text>
             </View>
             <View
               style={tw`rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-6 py-4 min-w-40`}
@@ -156,40 +173,150 @@ export default function CreatorDashboard() {
         <ScrollView style={tw`flex-1 px-6`}>
           {activeTab === "events" && (
             <View style={tw`pb-6`}>
-              {/* Empty State */}
-              <View style={tw`items-center py-16`}>
-                <View
-                  style={tw`mb-6 h-24 w-24 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-900`}
-                >
-                  <Text style={tw`text-4xl`}>🎪</Text>
-                </View>
-                <Text
-                  style={tw`mb-2 text-center text-2xl font-bold text-gray-900 dark:text-gray-50`}
-                >
-                  No Events Yet
-                </Text>
-                <Text
-                  style={tw`mb-8 text-center text-base leading-relaxed text-gray-600 dark:text-gray-400 px-8`}
-                >
-                  Create your first event to start managing queues and engaging
-                  with fans
-                </Text>
-                <Pressable
-                  style={({ pressed }) => [
-                    tw`rounded-2xl bg-[#E91E63] px-8 py-4`,
-                    {
-                      opacity: pressed ? 0.9 : 1,
-                      transform: [{ scale: pressed ? 0.98 : 1 }],
-                    },
-                  ]}
-                >
-                  <Text
-                    style={tw`text-lg font-semibold text-white dark:text-gray-950`}
+              {!creatorEvents || creatorEvents.length === 0 ? (
+                /* Empty State */
+                <View style={tw`items-center py-16`}>
+                  <View
+                    style={tw`mb-6 h-24 w-24 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-900`}
                   >
-                    Create Event
+                    <Text style={tw`text-4xl`}>🎪</Text>
+                  </View>
+                  <Text
+                    style={tw`mb-2 text-center text-2xl font-bold text-gray-900 dark:text-gray-50`}
+                  >
+                    No Events Yet
                   </Text>
-                </Pressable>
-              </View>
+                  <Text
+                    style={tw`mb-8 text-center text-base leading-relaxed text-gray-600 dark:text-gray-400 px-8`}
+                  >
+                    Create your first event to start managing queues and
+                    engaging with fans
+                  </Text>
+                  <Pressable
+                    onPress={() => router.push("/create-event")}
+                    style={({ pressed }) => [
+                      tw`rounded-2xl bg-[#E91E63] px-8 py-4`,
+                      {
+                        opacity: pressed ? 0.9 : 1,
+                        transform: [{ scale: pressed ? 0.98 : 1 }],
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={tw`text-lg font-semibold text-white dark:text-gray-950`}
+                    >
+                      Create Event
+                    </Text>
+                  </Pressable>
+                </View>
+              ) : (
+                /* Events List */
+                <View style={tw`gap-4 pt-4`}>
+                  {creatorEvents.map((event: any) => (
+                    <Pressable
+                      key={event._id}
+                      style={({ pressed }) => [
+                        tw`rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5`,
+                        {
+                          opacity: pressed ? 0.9 : 1,
+                          transform: [{ scale: pressed ? 0.98 : 1 }],
+                        },
+                      ]}
+                    >
+                      <View
+                        style={tw`flex-row items-start justify-between mb-3`}
+                      >
+                        <View style={tw`flex-1 mr-3`}>
+                          <Text
+                            style={tw`text-lg font-bold text-gray-900 dark:text-gray-50 mb-1`}
+                          >
+                            {event.title}
+                          </Text>
+                          <Text
+                            style={tw`text-sm text-gray-600 dark:text-gray-400`}
+                          >
+                            📍 {event.location}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            tw`rounded-full px-3 py-1`,
+                            event.isActive
+                              ? tw`bg-green-100 dark:bg-green-950`
+                              : tw`bg-gray-100 dark:bg-gray-800`,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              tw`text-xs font-semibold`,
+                              event.isActive
+                                ? tw`text-green-700 dark:text-green-300`
+                                : tw`text-gray-600 dark:text-gray-400`,
+                            ]}
+                          >
+                            {event.isActive ? "Active" : "Inactive"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={tw`flex-row items-center gap-4 mb-3`}>
+                        <Text
+                          style={tw`text-sm text-gray-600 dark:text-gray-400`}
+                        >
+                          🎫 Code:{" "}
+                          <Text style={tw`font-bold text-[#E91E63]`}>
+                            {event.eventCode}
+                          </Text>
+                        </Text>
+                        <Text
+                          style={tw`text-sm text-gray-600 dark:text-gray-400`}
+                        >
+                          ⏱️ {event.slotDuration}min slots
+                        </Text>
+                      </View>
+
+                      <View
+                        style={tw`flex-row items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-800`}
+                      >
+                        <View>
+                          <Text
+                            style={tw`text-xs text-gray-500 dark:text-gray-400 mb-1`}
+                          >
+                            In Queue
+                          </Text>
+                          <Text style={tw`text-2xl font-bold text-[#E91E63]`}>
+                            {event.currentQueueCount || 0}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text
+                            style={tw`text-xs text-gray-500 dark:text-gray-400 mb-1`}
+                          >
+                            Available Slots
+                          </Text>
+                          <Text
+                            style={tw`text-2xl font-bold text-gray-900 dark:text-gray-50`}
+                          >
+                            {event.availableSlots || 0}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text
+                            style={tw`text-xs text-gray-500 dark:text-gray-400 mb-1`}
+                          >
+                            Capacity
+                          </Text>
+                          <Text
+                            style={tw`text-2xl font-bold text-gray-900 dark:text-gray-50`}
+                          >
+                            {event.maxCapacity}
+                          </Text>
+                        </View>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -243,6 +370,7 @@ export default function CreatorDashboard() {
         {/* Quick Actions FAB */}
         <View style={tw`absolute bottom-6 right-6`}>
           <Pressable
+            onPress={() => router.push("/create-event")}
             style={({ pressed }) => [
               tw`h-16 w-16 rounded-full bg-[#E91E63] items-center justify-center shadow-2xl`,
               {

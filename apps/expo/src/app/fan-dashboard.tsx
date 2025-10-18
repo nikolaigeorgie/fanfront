@@ -8,6 +8,7 @@ import tw from "twrnc";
 import { EventScannerModal } from "~/components/EventScannerModal";
 import { QueueSuccessModal } from "~/components/QueueSuccessModal";
 import { authClient } from "~/utils/auth";
+import { api, useConvexQuery } from "~/utils/convex";
 
 export default function FanDashboard() {
   const router = useRouter();
@@ -22,6 +23,12 @@ export default function FanDashboard() {
     event: any;
     queueData: any;
   } | null>(null);
+
+  // Get Convex user by auth ID
+  const convexUser = useConvexQuery(
+    api.users.getUserByAuthId,
+    session?.user?.id ? { authUserId: session.user.id } : "skip",
+  );
 
   // TODO: Integrate with Convex for queue entries
   const getUserQueueEntries: any[] = []; // Will be integrated with Convex
@@ -201,7 +208,7 @@ export default function FanDashboard() {
             setSuccessData({ event, queueData });
             setShowSuccessModal(true);
           }}
-          userId={session?.user?.id}
+          userId={convexUser?._id}
         />
 
         {/* Success Modal */}

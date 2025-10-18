@@ -14,9 +14,11 @@ import { useRouter } from "expo-router";
 import tw from "twrnc";
 
 import { authClient } from "~/utils/auth";
+import { api, useConvexMutation } from "~/utils/convex";
 
 export default function SignUpScreen() {
   const router = useRouter();
+  const createOrUpdateUser = useConvexMutation(api.users.createOrUpdateUser);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,12 +26,22 @@ export default function SignUpScreen() {
 
   const handleSignUp = async () => {
     try {
-      await authClient.signUp.email({
+      const result = await authClient.signUp.email({
         email,
         password,
         name,
-        userType,
       });
+
+      // Create the user in Convex database
+      if (result.data?.user) {
+        await createOrUpdateUser({
+          email: result.data.user.email,
+          name: result.data.user.name,
+          userType: userType,
+          authUserId: result.data.user.id,
+        });
+      }
+
       // Navigate to home which will redirect based on user type
       router.replace("/");
     } catch (error) {
@@ -75,7 +87,7 @@ export default function SignUpScreen() {
                 FULL NAME
               </Text>
               <TextInput
-                style={tw`bg-gray-100 dark:bg-gray-900 text-black dark:text-white rounded-2xl px-5 py-5 text-lg border-2 border-transparent`}
+                style={tw`bg-gray-100 dark:bg-gray-900 text-black dark:text-white rounded-2xl px-5 h-14 text-lg border-2 border-transparent`}
                 value={name}
                 onChangeText={setName}
                 placeholder="Enter your name"
@@ -93,7 +105,7 @@ export default function SignUpScreen() {
                 EMAIL
               </Text>
               <TextInput
-                style={tw`bg-gray-100 dark:bg-gray-900 text-black dark:text-white rounded-2xl px-5 py-5 text-lg border-2 border-transparent`}
+                style={tw`bg-gray-100 dark:bg-gray-900 text-black dark:text-white rounded-2xl px-5 h-14 text-lg border-2 border-transparent`}
                 value={email}
                 onChangeText={setEmail}
                 placeholder="your@email.com"
@@ -112,7 +124,7 @@ export default function SignUpScreen() {
                 PASSWORD
               </Text>
               <TextInput
-                style={tw`bg-gray-100 dark:bg-gray-900 text-black dark:text-white rounded-2xl px-5 py-5 text-lg border-2 border-transparent`}
+                style={tw`bg-gray-100 dark:bg-gray-900 text-black dark:text-white rounded-2xl px-5 h-14 text-lg border-2 border-transparent`}
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Create a password"
