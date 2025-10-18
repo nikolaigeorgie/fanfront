@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link, Stack } from "expo-router";
+import { Link, Redirect, Stack } from "expo-router";
 import { LegendList } from "@legendapp/list";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -124,6 +124,13 @@ function MobileAuth() {
 }
 
 export default function Index() {
+  const { data: session, isPending } = authClient.useSession();
+  if (isPending) {
+    return <Text className="mt-10 text-xl text-red-500">Loading...</Text>;
+  }
+  if (!session) {
+    return <Redirect href="/sign-in" />;
+  }
   const queryClient = useQueryClient();
 
   const postQuery = useQuery(trpc.post.all.queryOptions());
