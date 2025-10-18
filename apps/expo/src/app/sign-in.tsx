@@ -26,8 +26,8 @@ export default function SignInScreen() {
         email,
         password,
       });
-      setEmail("");
-      setPassword("");
+      // Navigate to home which will redirect based on user type
+      router.replace("/");
     } catch (error) {
       console.error("Auth error:", error);
       Alert.alert("Error", "Sign in failed. Please check your credentials.");

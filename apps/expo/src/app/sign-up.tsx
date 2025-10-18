@@ -30,9 +30,8 @@ export default function SignUpScreen() {
         name,
         userType,
       });
-      setName("");
-      setEmail("");
-      setPassword("");
+      // Navigate to home which will redirect based on user type
+      router.replace("/");
     } catch (error) {
       console.error("Auth error:", error);
       Alert.alert("Error", "Sign up failed. Please try again.");

@@ -1,5 +1,9 @@
 {
   "extends": "@acme/tsconfig/compiled-package.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "isolatedDeclarations": false
+  },
   "include": ["src"],
   "exclude": ["node_modules"]
 }
