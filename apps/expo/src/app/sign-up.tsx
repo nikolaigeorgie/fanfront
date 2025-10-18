@@ -28,6 +28,7 @@ export default function SignUpScreen() {
         email,
         password,
         name,
+        userType,
       });
       setName("");
       setEmail("");

@@ -15,12 +15,20 @@ export function initAuth(options: {
     }),
     baseURL: options.baseUrl,
     secret: options.secret,
-    plugins: [
-      expo(),
-    ],
+    plugins: [expo()],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: false,
+    },
+    user: {
+      additionalFields: {
+        userType: {
+          type: "string",
+          defaultValue: "fan",
+          required: true,
+          input: true,
+        },
+      },
     },
     trustedOrigins: ["expo://"],
     onAPIError: {
