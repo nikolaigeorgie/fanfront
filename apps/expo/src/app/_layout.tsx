@@ -2,7 +2,6 @@ import { useColorScheme } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { NavigationContainer } from "@react-navigation/native";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { StripeProvider } from "@stripe/stripe-react-native";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -33,28 +32,27 @@ export default function RootLayout() {
           It also allows you to configure your screens 
         */}
             <BottomSheetModalProvider>
-            <NavigationContainer>
-            <Stack>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  headerStyle: {
-                    backgroundColor: "#c03484",
-                  },
-                  contentStyle: {
-                    backgroundColor:
-                      colorScheme == "dark" ? "#09090B" : "#FFFFFF",
-                  },
-                }}
-              />
-              <Stack.Screen
-                name="stripe-onboarding"
-                options={{
-                  presentation: "modal",
-                  headerShown: false,
-                  gestureEnabled: false,
-                }}
-              />
+              <Stack screenOptions={{ headerShown: false }}>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    headerStyle: {
+                      backgroundColor: "#c03484",
+                    },
+                    contentStyle: {
+                      backgroundColor:
+                        colorScheme == "dark" ? "#09090B" : "#FFFFFF",
+                    },
+                  }}
+                />
+                <Stack.Screen
+                  name="stripe-onboarding"
+                  options={{
+                    presentation: "modal",
+                    headerShown: false,
+                    gestureEnabled: false,
+                  }}
+                />
               </Stack>
             </BottomSheetModalProvider>
             <StatusBar />

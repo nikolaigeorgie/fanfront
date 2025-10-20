@@ -74,12 +74,19 @@ export function StripeConnectButton() {
       }
 
       console.log("[StripeConnect] Onboarding URL:", onboardingUrl);
+      console.log("[StripeConnect] URL type:", typeof onboardingUrl);
+      console.log("[StripeConnect] URL length:", onboardingUrl?.length);
 
       if (!onboardingUrl) {
         throw new Error("No onboarding URL returned from server");
       }
 
       // Navigate to WebView modal for in-app onboarding
+      console.log("[StripeConnect] Navigating to modal with params:", {
+        pathname: "/stripe-onboarding",
+        params: { url: onboardingUrl },
+      });
+
       router.push({
         pathname: "/stripe-onboarding",
         params: { url: onboardingUrl },
