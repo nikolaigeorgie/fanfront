@@ -1,13 +1,14 @@
 import { cronJobs } from "convex/server";
-import { internal } from "./_generated/api";
+
+import { api } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Run queue notifications every 5 minutes
-crons.interval(
-  "queue-notifications",
-  { minutes: 5 },
-  internal.notifications.sendQueueUpdateNotifications
+// Clean up expired webhook events every hour
+crons.hourly(
+  "cleanup expired events",
+  { hourUTC: 0 }, // Run at midnight UTC, but actually runs every hour
+  api.webhooks.cleanupExpiredEvents,
 );
 
 export default crons;

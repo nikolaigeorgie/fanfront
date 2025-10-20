@@ -1,10 +1,19 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { ConvexHttpClient } from "convex/browser";
 import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 
 import { db } from "@acme/db/client";
 import { user } from "@acme/db/schema";
+
+// Initialize Convex client for webhook events
+const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+const convex = convexUrl ? new ConvexHttpClient(convexUrl) : null;
+
+// Force this route to be dynamic and not pre-rendered at build time
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2024-12-18.acacia",
@@ -107,4 +116,35 @@ async function handleAccountUpdated(account: Stripe.Account) {
     "[Stripe Webhook] Successfully updated user stripe status:",
     existingUser[0].id,
   );
+
+  // Emit real-time event to Convex for client notifications
+  if (convex) {
+    try {
+      await convex.mutation("webhooks:emitWebhookEvent" as any, {
+        type: "stripe.account.updated",
+        userId: existingUser[0].id,
+        data: {
+          stripeAccountId: account.id,
+          status,
+          onboardingComplete: account.details_submitted,
+          chargesEnabled: account.charges_enabled,
+          payoutsEnabled: account.payouts_enabled,
+          message:
+            status === "active"
+              ? "Your Stripe account is now active!"
+              : `Stripe account status: ${status}`,
+        },
+      });
+      console.log(
+        "[Stripe Webhook] Convex event emitted for user:",
+        existingUser[0].id,
+      );
+    } catch (convexError) {
+      console.error(
+        "[Stripe Webhook] Failed to emit Convex event:",
+        convexError,
+      );
+      // Don't fail the webhook if Convex notification fails
+    }
+  }
 }
