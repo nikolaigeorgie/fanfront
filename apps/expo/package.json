@@ -3,6 +3,8 @@
   "private": true,
   "main": "index.ts",
   "scripts": {
+    "convex": "convex dev",
+    "convex:push": "npx convex deploy",
     "android": "expo run:android",
     "clean": "git clean -xdf .cache .expo .turbo android ios node_modules",
     "dev": "npx expo run:ios",

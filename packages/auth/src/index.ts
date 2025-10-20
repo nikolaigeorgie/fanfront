@@ -17,14 +17,29 @@ export function initAuth(options: {
     }),
     baseURL: options.baseUrl,
     secret: options.secret,
+    emailAndPassword: {
+      enabled: true,
+      requireEmailVerification: false,
+    },
     plugins: [
       oAuthProxy({
         productionURL: options.productionUrl,
       }),
       expo(),
     ],
+    // THIS CAUSSES LIKE TYPE ISSUES IN BETTER AUTH PROTECTED PROCEDURES IT SEEMS
+    // user: {
+    //   additionalFields: {
+    //     userType: {
+    //       type: "string",
+    //       defaultValue: "fan",
+    //       required: true,
+    //       input: true,
+    //     },
+    //   },
+    // },
     // socialProviders: {},
-    trustedOrigins: ["expo://"],
+    trustedOrigins: ["fanfront://"],
     onAPIError: {
       onError(error, ctx) {
         console.error("BETTER AUTH API ERROR", error, ctx);

@@ -7,7 +7,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   scheme: "fanfront",
   version: "0.1.0",
   orientation: "portrait",
-  icon: "./assets/icon-light.png",
+  icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
   updates: {
     fallbackToCacheTimeout: 0,
@@ -25,7 +25,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     package: "com.fanfront.app",
     adaptiveIcon: {
-      foregroundImage: "./assets/icon-light.png",
+      foregroundImage: "./assets/icon.png",
       backgroundColor: "#1F104A",
     },
     edgeToEdgeEnabled: true,
@@ -46,13 +46,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-secure-store",
     "expo-web-browser",
     [
+      "expo-location",
+      {
+        locationAlwaysAndWhenInUsePermission:
+          "Allow $(PRODUCT_NAME) to use your location.",
+      },
+    ],
+    [
       "expo-splash-screen",
       {
         backgroundColor: "#E4E4E7",
-        image: "./assets/icon-light.png",
+        image: "./assets/icon.png",
         dark: {
           backgroundColor: "#18181B",
-          image: "./assets/icon-dark.png",
+          image: "./assets/icon.png",
         },
       },
     ],
