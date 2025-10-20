@@ -1,5 +1,8 @@
+import { eq } from "drizzle-orm";
 import Stripe from "stripe";
 import { z } from "zod";
+
+import { user } from "@acme/db/schema";
 
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
@@ -49,115 +52,205 @@ export const stripeRouter = createTRPCRouter({
     }),
 
   // Create Stripe Connect account and onboarding link
-  createConnectAccount: protectedProcedure
-    .input(
-      z.object({
-        userId: z.string(),
-        email: z.string(),
-        name: z.string(),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      // Create Stripe Connect account
+  createConnectAccount: protectedProcedure.mutation(async ({ ctx }) => {
+    try {
+      const userId = ctx.session.user.id;
+
+      console.log(
+        "[Stripe API] Creating Stripe Connect account for user:",
+        userId,
+      );
+
+      // Get user data from database
+      const existingUser = await ctx.db
+        .select()
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1);
+
+      if (!existingUser[0]) {
+        throw new Error("User not found in database");
+      }
+
+      const userData = existingUser[0];
+      console.log("[Stripe API] User data:", {
+        id: userData.id,
+        email: userData.email,
+        hasStripeAccount: !!userData.stripeAccountId,
+      });
+
+      if (userData.stripeAccountId) {
+        console.log(
+          "[Stripe API] User already has Stripe account:",
+          userData.stripeAccountId,
+        );
+        // Return existing account with new onboarding link
+        const accountLink = await stripe.accountLinks.create({
+          account: userData.stripeAccountId,
+          refresh_url: "https://fanfront.com/redirect",
+          return_url: "https://fanfront.com/redirect",
+          type: "account_onboarding",
+        });
+
+        console.log("[Stripe API] Generated onboarding link");
+
+        return {
+          accountId: userData.stripeAccountId,
+          onboardingUrl: accountLink.url,
+        };
+      }
+
+      // Create new Stripe Connect account
+      console.log("[Stripe API] Creating new Stripe Express account");
       const account = await stripe.accounts.create({
         type: "express",
         country: "US",
-        email: input.email,
+        email: userData.email,
         capabilities: {
           card_payments: { requested: true },
           transfers: { requested: true },
         },
         metadata: {
-          userId: input.userId,
-          userName: input.name,
+          userId: userId,
+          userName: userData.name,
         },
       });
+
+      console.log("[Stripe API] Created Stripe account:", account.id);
+
+      // Save Stripe account ID to database
+      await ctx.db
+        .update(user)
+        .set({
+          stripeAccountId: account.id,
+          stripeAccountStatus: "pending",
+          stripeOnboardingComplete: false,
+        })
+        .where(eq(user.id, userId));
+
+      console.log("[Stripe API] Saved account to database");
 
       // Create account link for onboarding
       const accountLink = await stripe.accountLinks.create({
         account: account.id,
-        refresh_url:
-          process.env.STRIPE_CONNECT_REFRESH_URL || "fanfront://stripe-refresh",
-        return_url:
-          process.env.STRIPE_CONNECT_RETURN_URL || "fanfront://stripe-return",
+        refresh_url: "https://fanfront.com/redirect",
+        return_url: "https://fanfront.com/redirect",
         type: "account_onboarding",
       });
+
+      console.log("[Stripe API] Generated onboarding link:", accountLink.url);
 
       return {
         accountId: account.id,
         onboardingUrl: accountLink.url,
       };
-    }),
+    } catch (error: any) {
+      console.error("[Stripe API] Error creating connect account:", error);
+      throw new Error(
+        `Failed to create Stripe Connect account: ${error.message}`,
+      );
+    }
+  }),
 
   // Get existing account onboarding link
-  getConnectAccountLink: protectedProcedure
-    .input(
-      z.object({
-        stripeAccountId: z.string(),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      const accountLink = await stripe.accountLinks.create({
-        account: input.stripeAccountId,
-        refresh_url:
-          process.env.STRIPE_CONNECT_REFRESH_URL || "fanfront://stripe-refresh",
-        return_url:
-          process.env.STRIPE_CONNECT_RETURN_URL || "fanfront://stripe-return",
-        type: "account_onboarding",
-      });
+  getConnectAccountLink: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
 
-      return {
-        onboardingUrl: accountLink.url,
-      };
-    }),
+    const currentUser = await ctx.db
+      .select()
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (!currentUser[0]?.stripeAccountId) {
+      throw new Error("No Stripe account found");
+    }
+
+    const accountLink = await stripe.accountLinks.create({
+      account: currentUser[0].stripeAccountId,
+      refresh_url: "https://fanfront.com/redirect",
+      return_url: "https://fanfront.com/redirect",
+      type: "account_onboarding",
+    });
+
+    return {
+      onboardingUrl: accountLink.url,
+    };
+  }),
 
   // Get Stripe Connect dashboard link
-  getDashboardLink: protectedProcedure
-    .input(
-      z.object({
-        stripeAccountId: z.string(),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      const loginLink = await stripe.accounts.createLoginLink(
-        input.stripeAccountId,
-      );
+  getDashboardLink: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
 
-      return {
-        dashboardUrl: loginLink.url,
-      };
-    }),
+    const currentUser = await ctx.db
+      .select()
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (!currentUser[0]?.stripeAccountId) {
+      throw new Error("No Stripe account found");
+    }
+
+    const loginLink = await stripe.accounts.createLoginLink(
+      currentUser[0].stripeAccountId,
+    );
+
+    return {
+      dashboardUrl: loginLink.url,
+    };
+  }),
 
   // Refresh account status from Stripe
-  refreshAccountStatus: protectedProcedure
-    .input(
-      z.object({
-        stripeAccountId: z.string(),
-      }),
-    )
-    .query(async ({ input }) => {
-      const account = await stripe.accounts.retrieve(input.stripeAccountId);
+  refreshAccountStatus: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.session.user.id;
 
-      // Determine status
-      let status: "pending" | "restricted" | "active" | "rejected" = "pending";
-      if (account.charges_enabled && account.payouts_enabled) {
-        status = "active";
-      } else if (account.requirements?.disabled_reason) {
-        status = "rejected";
-      } else if (
-        account.requirements?.currently_due &&
-        account.requirements.currently_due.length > 0
-      ) {
-        status = "restricted";
-      }
+    // Get user's Stripe account ID
+    const currentUser = await ctx.db
+      .select()
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
 
-      return {
-        status,
-        onboardingComplete: account.details_submitted || false,
-        chargesEnabled: account.charges_enabled || false,
-        payoutsEnabled: account.payouts_enabled || false,
-      };
-    }),
+    if (!currentUser[0]?.stripeAccountId) {
+      throw new Error("No Stripe account found");
+    }
+
+    const account = await stripe.accounts.retrieve(
+      currentUser[0].stripeAccountId,
+    );
+
+    // Determine status
+    let status: "pending" | "restricted" | "active" | "rejected" = "pending";
+    if (account.charges_enabled && account.payouts_enabled) {
+      status = "active";
+    } else if (account.requirements?.disabled_reason) {
+      status = "rejected";
+    } else if (
+      account.requirements?.currently_due &&
+      account.requirements.currently_due.length > 0
+    ) {
+      status = "restricted";
+    }
+
+    // Update database with latest status
+    await ctx.db
+      .update(user)
+      .set({
+        stripeAccountStatus: status,
+        stripeOnboardingComplete: account.details_submitted || false,
+        stripeChargesEnabled: account.charges_enabled || false,
+        stripePayoutsEnabled: account.payouts_enabled || false,
+      })
+      .where(eq(user.id, userId));
+
+    return {
+      status,
+      onboardingComplete: account.details_submitted || false,
+      chargesEnabled: account.charges_enabled || false,
+      payoutsEnabled: account.payouts_enabled || false,
+    };
+  }),
 
   // Verify payment status
   verifyPayment: protectedProcedure

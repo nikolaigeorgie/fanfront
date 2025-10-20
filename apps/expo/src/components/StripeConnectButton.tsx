@@ -7,110 +7,108 @@ import {
   Text,
   View,
 } from "react-native";
-import { useQuery as useConvexQuery, useMutation } from "convex/react";
+import { useRouter } from "expo-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import tw from "twrnc";
 
-import { api } from "~/utils/api";
-import { api as convexApi } from "../../convex/_generated/api";
+import { trpc } from "~/utils/api";
+import { authClient } from "~/utils/auth";
 
-interface StripeConnectButtonProps {
-  userId: string;
-}
+export function StripeConnectButton() {
+  const router = useRouter();
+  const [connectLoading, setConnectLoading] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [refreshLoading, setRefreshLoading] = useState(false);
 
-export function StripeConnectButton({ userId }: StripeConnectButtonProps) {
-  const [loading, setLoading] = useState(false);
-
-  // Use tRPC for Stripe operations
-  const createConnectAccount = api.stripe.createConnectAccount.useMutation();
-  const getConnectAccountLink = api.stripe.getConnectAccountLink.useMutation();
-  const getDashboardLink = api.stripe.getDashboardLink.useMutation();
-  const refreshAccountStatus = api.stripe.refreshAccountStatus.useQuery(
-    { stripeAccountId: "" },
-    { enabled: false },
+  // Get user profile with Stripe data from tRPC
+  const { data: user, refetch: refetchUser } = useQuery(
+    trpc.auth.getCurrentUser.queryOptions(undefined),
   );
 
-  // Use Convex for user data
-  const user = useConvexQuery(convexApi.users.getUser, {
-    userId: userId as any,
-  });
-  const updateStripeAccount = useMutation(
-    convexApi.stripeConnect.updateStripeAccount,
+  // Use tRPC for all Stripe operations
+  const createConnectAccount = useMutation(
+    trpc.stripe.createConnectAccount.mutationOptions(),
+  );
+  const getConnectAccountLink = useMutation(
+    trpc.stripe.getConnectAccountLink.mutationOptions(),
+  );
+  const getDashboardLink = useMutation(
+    trpc.stripe.getDashboardLink.mutationOptions(),
+  );
+  const refreshAccountStatus = useMutation(
+    trpc.stripe.refreshAccountStatus.mutationOptions(),
   );
 
   const handleConnectStripe = async () => {
     try {
-      setLoading(true);
+      setConnectLoading(true);
 
       if (!user) {
         Alert.alert("Error", "User not found");
         return;
       }
 
+      console.log("[StripeConnect] Starting connection for user:", user.id);
+      console.log(
+        "[StripeConnect] Has existing account:",
+        !!user.stripeAccountId,
+      );
+
       let onboardingUrl: string;
 
       // Check if user already has Stripe account
       if (user.stripeAccountId) {
-        // Get new onboarding link for existing account
-        const result = await getConnectAccountLink.mutateAsync({
-          stripeAccountId: user.stripeAccountId,
-        });
-        onboardingUrl = result.onboardingUrl;
-      } else {
-        // Create new Stripe account
-        const result = await createConnectAccount.mutateAsync({
-          userId: userId,
-          email: user.email,
-          name: user.name,
-        });
-
-        // Update Convex with the new account ID
-        await updateStripeAccount({
-          userId: userId as any,
-          stripeAccountId: result.accountId,
-          stripeAccountStatus: "pending",
-          stripeOnboardingComplete: false,
-        });
-
-        onboardingUrl = result.onboardingUrl;
-      }
-
-      // Open Stripe onboarding in browser
-      const supported = await Linking.canOpenURL(onboardingUrl);
-      if (supported) {
-        await Linking.openURL(onboardingUrl);
-
-        // Show instructions
-        Alert.alert(
-          "Complete Onboarding",
-          "Please complete the Stripe onboarding process in your browser. When finished, return to the app and tap 'Refresh Status'.",
-          [{ text: "OK" }],
+        console.log(
+          "[StripeConnect] Getting onboarding link for existing account",
         );
+        // Get new onboarding link for existing account
+        const result = await getConnectAccountLink.mutateAsync(undefined);
+        console.log("[StripeConnect] Got link:", result);
+        onboardingUrl = result.onboardingUrl;
       } else {
-        Alert.alert("Error", "Cannot open Stripe onboarding page");
+        console.log("[StripeConnect] Creating new Stripe account");
+        // Create new Stripe account (stores in database automatically)
+        const result = await createConnectAccount.mutateAsync(undefined);
+        console.log("[StripeConnect] Created account:", result);
+        onboardingUrl = result.onboardingUrl;
       }
+
+      console.log("[StripeConnect] Onboarding URL:", onboardingUrl);
+
+      if (!onboardingUrl) {
+        throw new Error("No onboarding URL returned from server");
+      }
+
+      // Navigate to WebView modal for in-app onboarding
+      router.push({
+        pathname: "/stripe-onboarding",
+        params: { url: onboardingUrl },
+      });
     } catch (error: any) {
-      console.error("Stripe Connect error:", error);
+      console.error("[StripeConnect] Full error:", error);
+      console.error("[StripeConnect] Error message:", error.message);
+      console.error("[StripeConnect] Error data:", error.data);
       Alert.alert(
-        "Error",
-        error.message || "Failed to start Stripe onboarding",
+        "Stripe Connect Error",
+        error.data?.message ||
+          error.message ||
+          "Failed to start Stripe onboarding. Check console for details.",
       );
     } finally {
-      setLoading(false);
+      setConnectLoading(false);
     }
   };
 
   const handleViewDashboard = async () => {
     try {
-      setLoading(true);
+      setDashboardLoading(true);
 
       if (!user?.stripeAccountId) {
         Alert.alert("Error", "No Stripe account found");
         return;
       }
 
-      const { dashboardUrl } = await getDashboardLink.mutateAsync({
-        stripeAccountId: user.stripeAccountId,
-      });
+      const { dashboardUrl } = await getDashboardLink.mutateAsync();
 
       const supported = await Linking.canOpenURL(dashboardUrl);
       if (supported) {
@@ -122,51 +120,33 @@ export function StripeConnectButton({ userId }: StripeConnectButtonProps) {
       console.error("Dashboard link error:", error);
       Alert.alert("Error", error.message || "Failed to open dashboard");
     } finally {
-      setLoading(false);
+      setDashboardLoading(false);
     }
   };
 
   const handleRefreshStatus = async () => {
     try {
-      setLoading(true);
+      setRefreshLoading(true);
 
       if (!user?.stripeAccountId) {
         Alert.alert("Error", "No Stripe account found");
         return;
       }
 
-      // Fetch status from Stripe via tRPC
-      const { data: statusData } = await refreshAccountStatus.refetch({
-        stripeAccountId: user.stripeAccountId,
-      });
+      // Fetch status from Stripe via tRPC (automatically updates database)
+      await refreshAccountStatus.mutateAsync();
 
-      if (statusData) {
-        // Update Convex with the refreshed status
-        await updateStripeAccount({
-          userId: userId as any,
-          stripeAccountStatus: statusData.status,
-          stripeOnboardingComplete: statusData.onboardingComplete,
-          stripeChargesEnabled: statusData.chargesEnabled,
-          stripePayoutsEnabled: statusData.payoutsEnabled,
-        });
+      // Refetch user data to get updated status
+      await refetchUser();
 
-        Alert.alert("Success", "Account status refreshed");
-      }
+      Alert.alert("Success", "Account status refreshed");
     } catch (error: any) {
       console.error("Refresh status error:", error);
       Alert.alert("Error", error.message || "Failed to refresh status");
     } finally {
-      setLoading(false);
+      setRefreshLoading(false);
     }
   };
-
-  if (loading) {
-    return (
-      <View style={tw`items-center justify-center py-4`}>
-        <ActivityIndicator size="large" color="#E91E63" />
-      </View>
-    );
-  }
 
   if (!user) {
     return null;
@@ -177,18 +157,25 @@ export function StripeConnectButton({ userId }: StripeConnectButtonProps) {
     return (
       <Pressable
         onPress={handleConnectStripe}
+        disabled={connectLoading}
         style={({ pressed }) => [
           tw`rounded-2xl bg-[#635BFF] px-6 py-4 flex-row items-center justify-center`,
           {
-            opacity: pressed ? 0.9 : 1,
+            opacity: pressed || connectLoading ? 0.7 : 1,
             transform: [{ scale: pressed ? 0.98 : 1 }],
           },
         ]}
       >
-        <Text style={tw`text-lg font-bold text-white mr-2`}>
-          Connect Stripe Account
-        </Text>
-        <Text style={tw`text-lg`}>→</Text>
+        {connectLoading ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <>
+            <Text style={tw`text-lg font-bold text-white mr-2`}>
+              Connect Stripe Account
+            </Text>
+            <Text style={tw`text-lg`}>→</Text>
+          </>
+        )}
       </Pressable>
     );
   }
@@ -252,52 +239,67 @@ export function StripeConnectButton({ userId }: StripeConnectButtonProps) {
         {user.stripeAccountStatus !== "active" && (
           <Pressable
             onPress={handleConnectStripe}
+            disabled={connectLoading}
             style={({ pressed }) => [
-              tw`flex-1 rounded-2xl bg-[#635BFF] px-4 py-3`,
+              tw`flex-1 rounded-2xl bg-[#635BFF] px-4 py-3 flex-row items-center justify-center`,
               {
-                opacity: pressed ? 0.9 : 1,
+                opacity: pressed || connectLoading ? 0.7 : 1,
                 transform: [{ scale: pressed ? 0.98 : 1 }],
               },
             ]}
           >
-            <Text style={tw`text-center font-semibold text-white`}>
-              Complete Setup
-            </Text>
+            {connectLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={tw`text-center font-semibold text-white`}>
+                Complete Setup
+              </Text>
+            )}
           </Pressable>
         )}
 
         {user.stripeAccountStatus === "active" && (
           <Pressable
             onPress={handleViewDashboard}
+            disabled={dashboardLoading}
             style={({ pressed }) => [
-              tw`flex-1 rounded-2xl bg-[#635BFF] px-4 py-3`,
+              tw`flex-1 rounded-2xl bg-[#635BFF] px-4 py-3 flex-row items-center justify-center`,
               {
-                opacity: pressed ? 0.9 : 1,
+                opacity: pressed || dashboardLoading ? 0.7 : 1,
                 transform: [{ scale: pressed ? 0.98 : 1 }],
               },
             ]}
           >
-            <Text style={tw`text-center font-semibold text-white`}>
-              View Dashboard
-            </Text>
+            {dashboardLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={tw`text-center font-semibold text-white`}>
+                View Dashboard
+              </Text>
+            )}
           </Pressable>
         )}
 
         <Pressable
           onPress={handleRefreshStatus}
+          disabled={refreshLoading}
           style={({ pressed }) => [
-            tw`flex-1 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-900 px-4 py-3`,
+            tw`flex-1 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-900 px-4 py-3 flex-row items-center justify-center`,
             {
-              opacity: pressed ? 0.9 : 1,
+              opacity: pressed || refreshLoading ? 0.7 : 1,
               transform: [{ scale: pressed ? 0.98 : 1 }],
             },
           ]}
         >
-          <Text
-            style={tw`text-center font-semibold text-gray-900 dark:text-gray-50`}
-          >
-            Refresh Status
-          </Text>
+          {refreshLoading ? (
+            <ActivityIndicator size="small" color="#666666" />
+          ) : (
+            <Text
+              style={tw`text-center font-semibold text-gray-900 dark:text-gray-50`}
+            >
+              Refresh Status
+            </Text>
+          )}
         </Pressable>
       </View>
     </View>

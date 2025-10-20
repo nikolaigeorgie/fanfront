@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -9,43 +9,78 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { AvoidSoftInput } from "react-native-avoid-softinput";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import tw from "twrnc";
 
+import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
-import { api, useConvexMutation } from "~/utils/convex";
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const createOrUpdateUser = useConvexMutation(api.users.createOrUpdateUser);
+  const queryClient = useQueryClient();
+  const updateUserType = useMutation(
+    trpc.auth.updateUserType.mutationOptions({
+      onSuccess: async () => {
+        // Invalidate user queries to ensure fresh data on redirect
+        await queryClient.invalidateQueries(trpc.auth.pathFilter());
+      },
+    }),
+  );
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [userType, setUserType] = useState<"fan" | "celebrity">("fan");
 
+  const onFocusEffect = useCallback(() => {
+    AvoidSoftInput.setShouldMimicIOSBehavior(true);
+    AvoidSoftInput.setEnabled(true);
+    return () => {
+      AvoidSoftInput.setEnabled(false);
+      AvoidSoftInput.setShouldMimicIOSBehavior(false);
+    };
+  }, []);
+
+  useFocusEffect(onFocusEffect);
+
   const handleSignUp = async () => {
     try {
+      console.log("=== SIGN UP START ===");
+      console.log("Selected userType:", userType);
+
       const result = await authClient.signUp.email({
         email,
         password,
         name,
       });
 
-      // Create the user in Convex database
+      console.log("Sign up result:", result.data?.user);
+
+      // Update user type in database after account creation
       if (result.data?.user) {
-        await createOrUpdateUser({
-          email: result.data.user.email,
-          name: result.data.user.name,
-          userType: userType,
-          authUserId: result.data.user.id,
-        });
+        console.log("=== UPDATING USER TYPE ===");
+        console.log("Updating to:", userType);
+
+        const mutationResult = await updateUserType.mutateAsync({ userType });
+        console.log("Mutation result:", mutationResult);
+
+        // Wait a bit longer to ensure database write completes
+        // (tRPC has artificial delay in dev mode)
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Force clear any cached queries
+        queryClient.clear();
+
+        console.log("=== UPDATE COMPLETE ===");
       }
 
+      console.log("=== REDIRECTING ===");
       // Navigate to home which will redirect based on user type
       router.replace("/");
     } catch (error) {
-      console.error("Auth error:", error);
+      console.error("=== SIGN UP ERROR ===", error);
       Alert.alert("Error", "Sign up failed. Please try again.");
     }
   };

@@ -22,6 +22,7 @@
     "@acme/db": "workspace:*",
     "@acme/validators": "workspace:*",
     "@trpc/server": "catalog:",
+    "drizzle-orm": "^0.44.6",
     "stripe": "17.5.0",
     "superjson": "2.2.2",
     "zod": "catalog:"

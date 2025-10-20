@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import tw from "twrnc";
 
-// import { CreatePostForm } from "~/components/CreatePostForm";
 import { StripeConnectButton } from "~/components/StripeConnectButton";
+import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
 import { api, useConvexQuery } from "~/utils/convex";
 
@@ -16,7 +17,15 @@ export default function CreatorDashboard() {
     "events",
   );
 
-  // First get the Convex user by auth ID
+  // Get user data from tRPC (includes Stripe info)
+  const { data: user } = useQuery(trpc.auth.getCurrentUser.queryOptions());
+
+  // Check if user can create events (Stripe onboarded)
+  const { data: canCreateEvents } = useQuery(
+    trpc.auth.canCreateEvents.queryOptions(),
+  );
+
+  // First get the Convex user by auth ID (still needed for events)
   const convexUser = useConvexQuery(
     api.users.getUserByAuthId,
     session?.user?.id ? { authUserId: session.user.id } : "skip",
@@ -32,12 +41,6 @@ export default function CreatorDashboard() {
   const totalInQueue = activeEvents.reduce(
     (sum: number, e: any) => sum + (e.currentQueueCount || 0),
     0,
-  );
-
-  // Check if user can create events (Stripe onboarded)
-  const canCreateEvents = useConvexQuery(
-    api.stripeConnect.canCreateEvents,
-    convexUser?._id ? { userId: convexUser._id } : "skip",
   );
 
   const handleCreateEventClick = () => {
@@ -195,16 +198,14 @@ export default function CreatorDashboard() {
           {activeTab === "events" && (
             <View style={tw`pb-6`}>
               {/* Stripe Connect Section */}
-              {convexUser?._id && (
-                <View style={tw`pt-4 pb-6`}>
-                  <Text
-                    style={tw`text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3`}
-                  >
-                    PAYMENT SETUP
-                  </Text>
-                  <StripeConnectButton userId={convexUser._id} />
-                </View>
-              )}
+              <View style={tw`pt-4 pb-6`}>
+                <Text
+                  style={tw`text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3`}
+                >
+                  PAYMENT SETUP
+                </Text>
+                <StripeConnectButton />
+              </View>
 
               {!creatorEvents || creatorEvents.length === 0 ? (
                 /* Empty State */

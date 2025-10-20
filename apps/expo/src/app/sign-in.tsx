@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -9,18 +9,28 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { AvoidSoftInput } from "react-native-avoid-softinput";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import tw from "twrnc";
 
 import { authClient } from "~/utils/auth";
-import { api, useConvexMutation } from "~/utils/convex";
 
 export default function SignInScreen() {
   const router = useRouter();
-  const createOrUpdateUser = useConvexMutation(api.users.createOrUpdateUser);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  const onFocusEffect = useCallback(() => {
+    AvoidSoftInput.setShouldMimicIOSBehavior(true);
+    AvoidSoftInput.setEnabled(true);
+    return () => {
+      AvoidSoftInput.setEnabled(false);
+      AvoidSoftInput.setShouldMimicIOSBehavior(false);
+    };
+  }, []);
+
+  useFocusEffect(onFocusEffect);
 
   const handleSignIn = async () => {
     try {
@@ -28,16 +38,6 @@ export default function SignInScreen() {
         email,
         password,
       });
-
-      // Sync user to Convex database
-      if (result.data?.user) {
-        await createOrUpdateUser({
-          email: result.data.user.email,
-          name: result.data.user.name,
-          userType: (result.data.user as any).userType || "fan",
-          authUserId: result.data.user.id,
-        });
-      }
 
       // Navigate to home which will redirect based on user type
       router.replace("/");

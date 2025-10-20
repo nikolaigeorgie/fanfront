@@ -7,6 +7,14 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
   userType: text("user_type").default("fan").notNull(),
+  // Stripe Connect fields
+  stripeAccountId: text("stripe_account_id"),
+  stripeAccountStatus: text("stripe_account_status"), // 'pending' | 'active' | 'restricted' | 'rejected'
+  stripeOnboardingComplete: boolean("stripe_onboarding_complete").default(
+    false,
+  ),
+  stripeChargesEnabled: boolean("stripe_charges_enabled").default(false),
+  stripePayoutsEnabled: boolean("stripe_payouts_enabled").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()
