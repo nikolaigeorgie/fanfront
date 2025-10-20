@@ -28,6 +28,7 @@
     "next": "^15.5.4",
     "react": "catalog:react19",
     "react-dom": "catalog:react19",
+    "stripe": "17.5.0",
     "superjson": "2.2.2",
     "zod": "catalog:"
   },
