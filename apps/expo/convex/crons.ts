@@ -4,10 +4,10 @@ import { api } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Clean up expired webhook events every hour
+// Clean up expired webhook events every hour at the top of the hour
 crons.hourly(
   "cleanup expired events",
-  { hourUTC: 0 }, // Run at midnight UTC, but actually runs every hour
+  { minuteUTC: 0 }, // Run at the 0th minute of every hour
   api.webhooks.cleanupExpiredEvents,
 );
 

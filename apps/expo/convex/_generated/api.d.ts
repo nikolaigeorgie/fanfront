@@ -9,12 +9,8 @@
  */
 
 import type * as crons from "../crons.js";
-import type * as events from "../events.js";
-import type * as notifications from "../notifications.js";
-import type * as payments from "../payments.js";
 import type * as queue from "../queue.js";
-import type * as stripeConnect from "../stripeConnect.js";
-import type * as users from "../users.js";
+import type * as webhooks from "../webhooks.js";
 
 import type {
   ApiFromModules,
@@ -32,12 +28,8 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   crons: typeof crons;
-  events: typeof events;
-  notifications: typeof notifications;
-  payments: typeof payments;
   queue: typeof queue;
-  stripeConnect: typeof stripeConnect;
-  users: typeof users;
+  webhooks: typeof webhooks;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
 
