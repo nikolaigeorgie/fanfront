@@ -5,6 +5,10 @@ import { appRouter, createTRPCContext } from "@acme/api";
 
 import { auth } from "~/auth/server";
 
+// Force this route to be dynamic and not pre-rendered at build time
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 /**
  * Configure basic CORS headers
  * You should extend this to match your needs
