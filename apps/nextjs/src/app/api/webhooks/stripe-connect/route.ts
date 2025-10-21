@@ -7,17 +7,20 @@ import Stripe from "stripe";
 import { db } from "@acme/db/client";
 import { user } from "@acme/db/schema";
 
-// Initialize Convex client for webhook events
-const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-const convex = convexUrl ? new ConvexHttpClient(convexUrl) : null;
-
 // Force this route to be dynamic and not pre-rendered at build time
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-09-30.clover",
-});
+// Lazy-load Stripe instance to avoid build-time initialization
+const getStripe = () => {
+  return new Stripe(process.env.STRIPE_SECRET_KEY!);
+};
+
+// Lazy-load Convex client for webhook events
+const getConvex = () => {
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  return convexUrl ? new ConvexHttpClient(convexUrl) : null;
+};
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -30,7 +33,7 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!,
@@ -118,6 +121,7 @@ async function handleAccountUpdated(account: Stripe.Account) {
   );
 
   // Emit real-time event to Convex for client notifications
+  const convex = getConvex();
   if (convex) {
     try {
       await convex.mutation("webhooks:emitWebhookEvent" as any, {

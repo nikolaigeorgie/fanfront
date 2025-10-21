@@ -6,9 +6,13 @@ import { user } from "@acme/db/schema";
 
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2025-09-30.clover",
-});
+// Lazy-load Stripe instance to avoid build-time initialization
+const getStripe = () => {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error("STRIPE_SECRET_KEY is not defined");
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY);
+};
 
 export const stripeRouter = createTRPCRouter({
   // Create payment intent for queue entry
@@ -28,7 +32,7 @@ export const stripeRouter = createTRPCRouter({
       const platformFee = Math.floor(input.amount * 0.1);
 
       // Create payment intent with destination charge
-      const paymentIntent = await stripe.paymentIntents.create({
+      const paymentIntent = await getStripe().paymentIntents.create({
         amount: input.amount,
         currency: "usd",
         application_fee_amount: platformFee,
@@ -85,7 +89,7 @@ export const stripeRouter = createTRPCRouter({
           userData.stripeAccountId,
         );
         // Return existing account with new onboarding link
-        const accountLink = await stripe.accountLinks.create({
+        const accountLink = await getStripe().accountLinks.create({
           account: userData.stripeAccountId,
           refresh_url: "https://fanfront.com/redirect",
           return_url: "https://fanfront.com/redirect",
@@ -102,7 +106,7 @@ export const stripeRouter = createTRPCRouter({
 
       // Create new Stripe Connect account
       console.log("[Stripe API] Creating new Stripe Express account");
-      const account = await stripe.accounts.create({
+      const account = await getStripe().accounts.create({
         type: "express",
         country: "US",
         email: userData.email,
@@ -131,7 +135,7 @@ export const stripeRouter = createTRPCRouter({
       console.log("[Stripe API] Saved account to database");
 
       // Create account link for onboarding
-      const accountLink = await stripe.accountLinks.create({
+      const accountLink = await getStripe().accountLinks.create({
         account: account.id,
         refresh_url: "https://fanfront.com/redirect",
         return_url: "https://fanfront.com/redirect",
@@ -166,7 +170,7 @@ export const stripeRouter = createTRPCRouter({
       throw new Error("No Stripe account found");
     }
 
-    const accountLink = await stripe.accountLinks.create({
+    const accountLink = await getStripe().accountLinks.create({
       account: currentUser[0].stripeAccountId,
       refresh_url: "https://fanfront.com/redirect",
       return_url: "https://fanfront.com/redirect",
@@ -192,7 +196,7 @@ export const stripeRouter = createTRPCRouter({
       throw new Error("No Stripe account found");
     }
 
-    const loginLink = await stripe.accounts.createLoginLink(
+    const loginLink = await getStripe().accounts.createLoginLink(
       currentUser[0].stripeAccountId,
     );
 
@@ -216,7 +220,7 @@ export const stripeRouter = createTRPCRouter({
       throw new Error("No Stripe account found");
     }
 
-    const account = await stripe.accounts.retrieve(
+    const account = await getStripe().accounts.retrieve(
       currentUser[0].stripeAccountId,
     );
 
@@ -260,7 +264,7 @@ export const stripeRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const paymentIntent = await stripe.paymentIntents.retrieve(
+      const paymentIntent = await getStripe().paymentIntents.retrieve(
         input.paymentIntentId,
       );
 
@@ -278,7 +282,7 @@ export const stripeRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input }) => {
-      const refund = await stripe.refunds.create({
+      const refund = await getStripe().refunds.create({
         payment_intent: input.paymentIntentId,
       });
 
