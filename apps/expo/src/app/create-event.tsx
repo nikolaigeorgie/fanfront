@@ -11,29 +11,28 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import tw from "twrnc";
 
 import type { LocationData } from "~/components/LocationSearchInput";
 import { DurationPicker } from "~/components/DurationPicker";
 import { LocationSearchInput } from "~/components/LocationSearchInput";
 import { TimePicker } from "~/components/TimePicker";
+import { queryClient, trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
-import { api, useConvexMutation, useConvexQuery } from "~/utils/convex";
 
 // TODO: Move this to environment variables
 const GOOGLE_PLACES_API_KEY = "AIzaSyDPBxu1vgLKTG1nrQzc6WYco5IeAKpudAU";
 
 export default function CreateEventScreen() {
   const router = useRouter();
-  const createEvent = useConvexMutation(api.events.createEvent);
-  const createOrUpdateUser = useConvexMutation(api.users.createOrUpdateUser);
   const { data: session } = authClient.useSession();
 
-  // Get Convex user by auth ID
-  const convexUser = useConvexQuery(
-    api.users.getUserByAuthId,
-    session?.user?.id ? { authUserId: session.user.id } : "skip",
-  );
+  // Get user data from PostgreSQL via tRPC
+  const { data: user } = useQuery(trpc.auth.getCurrentUser.queryOptions());
+
+  // Create event mutation
+  const createEventMutation = useMutation(trpc.event.create.mutationOptions());
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -55,31 +54,6 @@ export default function CreateEventScreen() {
       return;
     }
 
-    // If Convex user doesn't exist, create it
-    let userId: any = convexUser?._id;
-    if (!userId) {
-      try {
-        userId = await createOrUpdateUser({
-          email: session.user.email,
-          name: session.user.name,
-          userType: (session.user as any).userType || "celebrity",
-          authUserId: session.user.id,
-        });
-
-        if (!userId) {
-          Alert.alert(
-            "Error",
-            "Failed to create user account. Please try again.",
-          );
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to create user:", error);
-        Alert.alert("Error", "Failed to sync user account. Please try again.");
-        return;
-      }
-    }
-
     // Validation
     if (!title.trim()) {
       Alert.alert("Error", "Please enter an event title");
@@ -90,30 +64,29 @@ export default function CreateEventScreen() {
       return;
     }
 
+    if (endTime <= startTime) {
+      Alert.alert("Error", "End time must be after start time");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
 
-      const startTimeMs = startTime.getTime();
-      const endTimeMs = endTime.getTime();
-
-      // Calculate max duration in minutes
-      const maxDuration = Math.floor((endTimeMs - startTimeMs) / (1000 * 60));
-
-      if (maxDuration <= 0) {
-        Alert.alert("Error", "End time must be after start time");
-        return;
-      }
-
-      await createEvent({
+      // Create event in PostgreSQL via tRPC
+      await createEventMutation.mutateAsync({
         title: title.trim(),
-        description: description.trim(),
-        celebrityId: userId!,
+        description: description.trim() || undefined,
+        celebrityId: session.user.id,
         location: locationData?.description || location.trim(),
-        startTime: startTimeMs,
-        endTime: endTimeMs,
-        maxDuration,
+        startTime: startTime,
+        endTime: endTime,
         slotDuration: slotDuration,
         maxCapacity: maxCapacity ? parseInt(maxCapacity) : undefined,
+      });
+
+      // Invalidate the events query to refetch
+      await queryClient.invalidateQueries({
+        queryKey: trpc.event.getByCelebrity.queryKey(),
       });
 
       Alert.alert("Success", "Event created successfully!", [

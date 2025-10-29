@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import WebView from "react-native-webview";
+import { WebView } from "react-native-webview";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import tw from "twrnc";
@@ -129,6 +129,9 @@ export default function StripeOnboardingModal() {
 
   // Handle case where URL might be an array (common router issue)
   const urlString = Array.isArray(params.url) ? params.url[0] : params.url;
+  console.log({
+    urlString,
+  });
 
   if (isRefreshing) {
     return (
@@ -185,7 +188,7 @@ export default function StripeOnboardingModal() {
       {/* WebView */}
       <View style={tw`flex-1`}>
         <WebView
-          source={{ uri: urlString }}
+          source={{ uri: "https://google.com" }}
           onNavigationStateChange={handleNavigationStateChange}
           onError={handleError}
           onLoadStart={() =>

@@ -17,9 +17,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier: "com.fanfront.app",
     supportsTablet: true,
+    buildNumber: "3",
     icon: {
       light: "./assets/icon.png",
       dark: "./assets/icon.png",
+    },
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
     },
   },
   android: {
@@ -30,11 +34,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     edgeToEdgeEnabled: true,
   },
-  // extra: {
-  //   eas: {
-  //     projectId: "your-eas-project-id",
-  //   },
-  // },
+  extra: {
+    eas: {
+      projectId: "8e060b27-0537-4416-bcfe-9668675ddb78",
+    },
+  },
   experiments: {
     tsconfigPaths: true,
     typedRoutes: true,

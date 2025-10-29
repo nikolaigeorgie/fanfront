@@ -3,12 +3,13 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import tw from "twrnc";
 
 import { EventScannerModal } from "~/components/EventScannerModal";
 import { QueueSuccessModal } from "~/components/QueueSuccessModal";
+import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
-import { api, useConvexQuery } from "~/utils/convex";
 
 export default function FanDashboard() {
   const router = useRouter();
@@ -24,11 +25,8 @@ export default function FanDashboard() {
     queueData: any;
   } | null>(null);
 
-  // Get Convex user by auth ID
-  const convexUser = useConvexQuery(
-    api.users.getUserByAuthId,
-    session?.user?.id ? { authUserId: session.user.id } : "skip",
-  );
+  // Get user data from PostgreSQL via tRPC
+  const { data: user } = useQuery(trpc.auth.getCurrentUser.queryOptions());
 
   // TODO: Integrate with Convex for queue entries
   const getUserQueueEntries: any[] = []; // Will be integrated with Convex
@@ -201,7 +199,7 @@ export default function FanDashboard() {
         )}
 
         {/* Event Scanner Modal */}
-        {convexUser?._id && (
+        {session?.user?.id && (
           <EventScannerModal
             visible={showEventScanner}
             onClose={() => setShowEventScanner(false)}
@@ -209,7 +207,7 @@ export default function FanDashboard() {
               setSuccessData({ event, queueData });
               setShowSuccessModal(true);
             }}
-            userId={convexUser._id}
+            userId={session.user.id}
           />
         )}
 

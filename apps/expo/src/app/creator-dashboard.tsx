@@ -8,7 +8,6 @@ import tw from "twrnc";
 import { StripeConnectButton } from "~/components/StripeConnectButton";
 import { trpc } from "~/utils/api";
 import { authClient } from "~/utils/auth";
-import { api, useConvexQuery } from "~/utils/convex";
 
 export default function CreatorDashboard() {
   const router = useRouter();
@@ -17,7 +16,7 @@ export default function CreatorDashboard() {
     "events",
   );
 
-  // Get user data from tRPC (includes Stripe info)
+  // Get user data from PostgreSQL via tRPC (includes Stripe info)
   const { data: user } = useQuery(trpc.auth.getCurrentUser.queryOptions());
 
   // Check if user can create events (Stripe onboarded)
@@ -25,23 +24,13 @@ export default function CreatorDashboard() {
     trpc.auth.canCreateEvents.queryOptions(),
   );
 
-  // First get the Convex user by auth ID (still needed for events)
-  const convexUser = useConvexQuery(
-    api.users.getUserByAuthId,
-    session?.user?.id ? { authUserId: session.user.id } : "skip",
+  // Load creator's events from PostgreSQL via tRPC
+  const { data: creatorEvents } = useQuery(
+    trpc.event.getByCelebrity.queryOptions(),
   );
 
-  // Load creator's events from Convex using the Convex user ID
-  const creatorEvents = useConvexQuery(
-    api.events.getEventsByCelebrity,
-    convexUser?._id ? { celebrityId: convexUser._id } : "skip",
-  );
-
-  const activeEvents = creatorEvents?.filter((e: any) => e.isActive) || [];
-  const totalInQueue = activeEvents.reduce(
-    (sum: number, e: any) => sum + (e.currentQueueCount || 0),
-    0,
-  );
+  const activeEvents = creatorEvents?.filter((e) => e.isActive) || [];
+  const totalInQueue = 0; // TODO: Get queue count from Convex for each event
 
   const handleCreateEventClick = () => {
     if (!canCreateEvents) {
@@ -250,9 +239,9 @@ export default function CreatorDashboard() {
               ) : (
                 /* Events List */
                 <View style={tw`gap-4 pt-4`}>
-                  {creatorEvents.map((event: any) => (
+                  {creatorEvents.map((event) => (
                     <Pressable
-                      key={event._id}
+                      key={event.id}
                       style={({ pressed }) => [
                         tw`rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5`,
                         {
@@ -323,31 +312,31 @@ export default function CreatorDashboard() {
                             In Queue
                           </Text>
                           <Text style={tw`text-2xl font-bold text-[#E91E63]`}>
-                            {event.currentQueueCount || 0}
+                            0
                           </Text>
                         </View>
                         <View>
                           <Text
                             style={tw`text-xs text-gray-500 dark:text-gray-400 mb-1`}
                           >
-                            Available Slots
+                            Max Capacity
                           </Text>
                           <Text
                             style={tw`text-2xl font-bold text-gray-900 dark:text-gray-50`}
                           >
-                            {event.availableSlots || 0}
+                            {event.maxCapacity || "∞"}
                           </Text>
                         </View>
                         <View>
                           <Text
                             style={tw`text-xs text-gray-500 dark:text-gray-400 mb-1`}
                           >
-                            Capacity
+                            Time
                           </Text>
                           <Text
-                            style={tw`text-2xl font-bold text-gray-900 dark:text-gray-50`}
+                            style={tw`text-sm font-bold text-gray-900 dark:text-gray-50`}
                           >
-                            {event.maxCapacity}
+                            {new Date(event.startTime).toLocaleDateString()}
                           </Text>
                         </View>
                       </View>
